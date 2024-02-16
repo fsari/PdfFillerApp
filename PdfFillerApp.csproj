@@ -15,6 +15,7 @@
     <PackageReference Include="EPPlus" Version="7.0.9" />
     <PackageReference Include="itext7" Version="8.0.3" />
     <PackageReference Include="itext7.bouncy-castle-adapter" Version="8.0.3" />
+    <PackageReference Include="NPOI" Version="2.6.2" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,10 @@
 ﻿using ClosedXML.Excel;
+using DocumentFormat.OpenXml.Spreadsheet;
 using iText.Forms;
 using iText.Kernel.Pdf;
 using Microsoft.AspNetCore.Mvc;
+using NPOI.SS.UserModel;
+using NPOI.XSSF.UserModel;
 using OfficeOpenXml;
 
 namespace PdfFillerApp.Controllers
@@ -48,30 +51,43 @@ namespace PdfFillerApp.Controllers
         }
 
 
+        // Install-Package NPOI
+
         public async Task ReadExcel()
         {
             string filePath = @"wwwroot\temp\file.xlsx";
 
             try
             {
-                using var workbook = new XLWorkbook(filePath);
-                // Loop through all sheets in the Excel file
-                foreach (var sheet in workbook.Worksheets)
+                using (FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read))
                 {
-                    Console.WriteLine($"Reading data from sheet: {sheet.Name}");
+                    IWorkbook workbook = new XSSFWorkbook(fs);
 
-                    // Loop through rows and columns to read data
-                    foreach (var row in sheet.Rows())
+                    // Loop through all sheets in the Excel file
+                    for (int i = 0; i < workbook.NumberOfSheets; i++)
                     {
-                        foreach (var cell in row.Cells())
-                        {
-                            // Access cell value using cell.Value
-                            Console.Write($"{cell.Value}\t");
-                        }
-                        Console.WriteLine(); // Move to the next row
-                    }
+                        ISheet sheet = workbook.GetSheetAt(i);
+                        Console.WriteLine($"Reading data from sheet: {sheet.SheetName}");
 
-                    Console.WriteLine();
+                        // Loop through rows and columns to read data
+                        for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
+                        {
+                            IRow row = sheet.GetRow(rowIndex);
+
+                            if (row != null)
+                            {
+                                // Loop through cells in the row
+                                foreach (ICell cell in row.Cells)
+                                {
+                                    // Access cell value using cell.ToString()
+                                    Console.Write($"{cell}\t");
+                                }
+                                Console.WriteLine(); // Move to the next row
+                            }
+                        }
+
+                        Console.WriteLine();
+                    }
                 }
             }
             catch (Exception ex)
@@ -80,6 +96,44 @@ namespace PdfFillerApp.Controllers
                 throw;
             }
         }
+
+
+
+
+        //// ClosedXML // Install-Package ClosedXML
+
+        //public async Task ReadExcel()
+        //{
+        //    string filePath = @"wwwroot\temp\file.xlsx";
+
+        //    try
+        //    {
+        //        using var workbook = new XLWorkbook(filePath);
+        //        // Loop through all sheets in the Excel file
+        //        foreach (var sheet in workbook.Worksheets)
+        //        {
+        //            Console.WriteLine($"Reading data from sheet: {sheet.Name}");
+
+        //            // Loop through rows and columns to read data
+        //            foreach (var row in sheet.Rows())
+        //            {
+        //                foreach (var cell in row.Cells())
+        //                {
+        //                    // Access cell value using cell.Value
+        //                    Console.Write($"{cell.Value}\t");
+        //                }
+        //                Console.WriteLine(); // Move to the next row
+        //            }
+
+        //            Console.WriteLine();
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+
+        //        throw;
+        //    }
+        //}
 
 
         /// EPPLUS  // Install-Package EPPlus
