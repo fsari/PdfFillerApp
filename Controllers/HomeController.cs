@@ -47,7 +47,6 @@ namespace PdfFillerApp.Controllers
                 return BadRequest("Dosya Geçersiz");
             }
 
-
             //-----------------------------  Burada ilk dosya okunuyor ANLAGE   ------------------------------------------
             string fan = vm.FileAnlage.FileName.TrCharsToEngCharsSub200();
             var fileanlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fan);
@@ -60,7 +59,6 @@ namespace PdfFillerApp.Controllers
 
 
 
-
             //-----------------------------  Burada ikinci dosya okunuyor VORLAGE   ------------------------------------
             string fvn = vm.FileVorlage.FileName.TrCharsToEngCharsSub200();
             var filevorlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fvn);
@@ -70,9 +68,6 @@ namespace PdfFillerApp.Controllers
                 stvorlage.Dispose();
             }
             var resultv = await MinioHelper.Upload(filevorlage, vm.Title, ".xlsx");
-
-
-
 
 
             //--------------------------------- Veritabanına yaz ---------------------------------------
@@ -107,13 +102,6 @@ namespace PdfFillerApp.Controllers
             return RedirectToAction("Index");
         }
 
-
-
-        public IActionResult GetResult(Guid taskid)
-        {
-            var cjob = _context.ConvertJobs.Find(taskid);
-            return View();
-        }
 
 
         #region PDF İşlemleri
