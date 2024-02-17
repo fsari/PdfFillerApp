@@ -31,6 +31,19 @@
                 : text.Substring(startIndex, length);
         }
 
+        public static bool DeleteFile(this string filePath)
+        {
+            var fileInfo = new FileInfo(filePath);
+
+            if (!fileInfo.Exists)
+            {
+                return false;
+            }
+
+            fileInfo.Delete();
+            return true;
+        }
+
     }
 
 }

@@ -1,7 +1,6 @@
 ﻿using iText.Forms;
 using iText.Kernel.Pdf;
 using Microsoft.AspNetCore.Mvc;
-using NPOI.HPSF;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using PdfFillerApp.Data;
@@ -40,13 +39,16 @@ namespace PdfFillerApp.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> NewTask(ConvertJobVM vm)
         {
+
+            // --------------------- Dosyalar geçerli mi? İkisi de geçerli değilse hata ver -----------------------------
+
             if (vm.FileAnlage == null || vm.FileAnlage.Length == 0 || vm.FileVorlage == null || vm.FileVorlage.Length == 0)
             {
                 return BadRequest("Dosya Geçersiz");
             }
 
 
-            //-----------------------------------------------------------------------
+            //-----------------------------  Burada ilk dosya okunuyor ANLAGE   ------------------------------------------
             string fan = vm.FileAnlage.FileName.TrCharsToEngCharsSub200();
             var fileanlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fan);
             using (var stanlage = new FileStream(fileanlage, FileMode.Create))
@@ -56,7 +58,10 @@ namespace PdfFillerApp.Controllers
             }
             var resulta = await MinioHelper.Upload(fileanlage, vm.Title, ".xlsx");
 
-            //------------------------------------------------------------------------
+
+
+
+            //-----------------------------  Burada ikinci dosya okunuyor VORLAGE   ------------------------------------
             string fvn = vm.FileVorlage.FileName.TrCharsToEngCharsSub200();
             var filevorlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fvn);
             using (var stvorlage = new FileStream(filevorlage, FileMode.Create))
@@ -66,8 +71,11 @@ namespace PdfFillerApp.Controllers
             }
             var resultv = await MinioHelper.Upload(filevorlage, vm.Title, ".xlsx");
 
-            //------------------------------------------------------------------------
 
+
+
+
+            //--------------------------------- Veritabanına yaz ---------------------------------------
 
             var cj = new ConvertJob
             {
@@ -86,18 +94,18 @@ namespace PdfFillerApp.Controllers
 
 
 
-
+        /// <summary>
+        /// Minio Sunucusunda ki dosyayı indirir. Sonra sunucudan siler
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
         public async Task<IActionResult> DownloadFile(string filename)
         {
             await MinioHelper.DownloadFile(filename);
+
+            Path.Combine(_env.WebRootPath, filename).DeleteFile();
             return RedirectToAction("Index");
         }
-
-
-
-
-
-
 
 
 
@@ -109,7 +117,12 @@ namespace PdfFillerApp.Controllers
 
 
         #region PDF İşlemleri
-
+        /// <summary>
+        /// PDF içindeki field ları veri ile doldurur
+        /// </summary>
+        /// <param name="form"></param>
+        /// <param name="data"></param>
+        /// <returns></returns>
         public async Task<PdfAcroForm> FillForm(PdfAcroForm form, PdfVM data)
         {
 
@@ -121,6 +134,13 @@ namespace PdfFillerApp.Controllers
 
             return form;
         }
+
+
+        /// <summary>
+        /// PDF doldurur
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
         public async Task FillPdf(Guid id)
         {
             var cj = _context.ConvertJobs.Find(id);
@@ -135,13 +155,22 @@ namespace PdfFillerApp.Controllers
             PdfAcroForm form = PdfAcroForm.GetAcroForm(pdfDocument, true);
 
             // excelden okuma yapılıp Dataset hazırlanacak
-
-
             var cellvaluelist = await ReadExcel(id);
 
+
+            // TODO: cellValueList ten veriler alınarak pdfvm doldurulacak
             PdfVM pdfVM = new();
 
+            // ???  hücre ve etiket eşlemelerini tutan eşleme tablosu ??? kullanılsın mı yoksa doğrudan vm ypaılsın mı bilemedim??
+            var pairingList = _context.CellPdfPairings.ToList();
 
+            foreach (var item in pairingList)
+            {
+                // eşleştirme tablosu kullanılacak mı????
+
+            }
+
+            // Doldurulan vm pdf için gönderilecek
             var formfilled = await FillForm(form, pdfVM);
 
 
@@ -153,7 +182,8 @@ namespace PdfFillerApp.Controllers
 
         #endregion
 
-        // Install-Package NPOI
+
+
 
         public void UploadFileAndConvert(string sourceFilePath, string destinationFilePath)
         {
@@ -165,24 +195,28 @@ namespace PdfFillerApp.Controllers
 
         }
 
-
-        public async Task<List<SheetDataVM>> ReadExcel(Guid? taskid)
+        /// <summary>
+        /// Excel dosyalarını Minio sunucusundan temp e indirip okur sonra tempten siler
+        /// </summary>
+        /// <param name="id"></param>
+        /// <returns></returns>
+        public async Task<List<SheetDataVM>> ReadExcel(Guid? id)
         {
             List<SheetDataVM> sheetDataList = new();
 
 
-            var cjob = _context.ConvertJobs.Find(taskid);
+            var cjob = _context.ConvertJobs.Find(id);
 
             if (cjob != null)
             {
 
-                 MinioHelper.DownloadFile(cjob.FileAnlageXls, true).GetAwaiter().GetResult();
-                 MinioHelper.DownloadFile(cjob.FileVorlageXls, true).GetAwaiter().GetResult();
+                MinioHelper.DownloadFile(cjob.FileAnlageXls, true).GetAwaiter().GetResult();
+                MinioHelper.DownloadFile(cjob.FileVorlageXls, true).GetAwaiter().GetResult();
 
 
-               
-                string fileanlage = @"wwwroot\temp\downloaded\"+cjob.FileAnlageXls;
-                string filevorlage = @"wwwroot\temp\downloaded\"+cjob.FileVorlageXls;
+
+                string fileanlage = @"wwwroot\temp\downloaded\" + cjob.FileAnlageXls;
+                string filevorlage = @"wwwroot\temp\downloaded\" + cjob.FileVorlageXls;
 
                 try
                 {
@@ -224,8 +258,6 @@ namespace PdfFillerApp.Controllers
                         }
                         sheetDataList.Add(sheetData);
                     }
-
-
 
                     //----------------
 
@@ -269,6 +301,11 @@ namespace PdfFillerApp.Controllers
                 catch (Exception ex)
                 {
                     throw;
+                }
+                finally
+                {
+                    fileanlage.DeleteFile();
+                    filevorlage.DeleteFile();
                 }
             }
 
