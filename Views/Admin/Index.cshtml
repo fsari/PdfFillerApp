@@ -1,0 +1,27 @@
+﻿@model List<CellPdfPairing>
+@{
+    ViewData["Title"] = "Hücre - Pdf Eşleme";
+}
+
+<h1 class="h5">@ViewData["Title"]</h1>
+<hr />
+<table class="table table-sm">
+
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Cell</td>
+                <td>@item.PdfLabel</td>
+                <td width="15%">
+                    <div class="btn-group btn-group-sm">
+                        <a class="btn btn-outline-warning me-1">Düzenle</a>
+                        <a class="btn btn-outline-danger">Sil</a>
+                    </div>
+                </td>
+            </tr>
+        }
+    </tbody>
+
+</table>
+

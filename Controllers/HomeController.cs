@@ -3,28 +3,100 @@ using iText.Kernel.Pdf;
 using Microsoft.AspNetCore.Mvc;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
+using PdfFillerApp.Data;
+using PdfFillerApp.Helper;
 using PdfFillerApp.Models;
-using System.Data;
 
 namespace PdfFillerApp.Controllers
 {
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
-        IWebHostEnvironment _env;
+        private readonly IWebHostEnvironment _env;
+        private readonly ApplicationDbContext _context;
 
-        public HomeController(ILogger<HomeController> logger, IWebHostEnvironment env)
+        public HomeController(ILogger<HomeController> logger, IWebHostEnvironment env, ApplicationDbContext context)
         {
             _logger = logger;
             _env = env;
+            _context = context;
         }
 
         public IActionResult Index()
         {
+            var taskList = _context.ConvertJobs.Where(i => !i.IsDeleted).OrderByDescending(i => i.CreatedAt).ToList();
+            return View(taskList);
+        }
+
+
+        public IActionResult NewTask()
+        {
+            return View(new ConvertJobVM { });
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> NewTask(ConvertJobVM vm)
+        {
+            if (vm.FileAnlage == null || vm.FileAnlage.Length == 0 || vm.FileVorlage == null || vm.FileVorlage.Length == 0)
+            {
+                return BadRequest("Dosya Geçersiz");
+            }
+
+            string fan = vm.FileAnlage.FileName.TrCharsToEngCharsSub200();
+            string fvn = vm.FileVorlage.FileName.TrCharsToEngCharsSub200();
+
+
+
+            var cj = new ConvertJob
+            {
+                Title = vm.Title,
+                Status = Status.Started,
+                FileAnlageXls = fan,
+                FileVorlageXls = fvn
+            };
+            _context.ConvertJobs.Add(cj);
+            _context.SaveChanges();
+
+
+
+            var fileanlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fan);
+            using var stanlage = new FileStream(fileanlage, FileMode.Create);
+            await vm.FileAnlage.CopyToAsync(stanlage);
+            await MinioHelper.Upload(fan, "anlage", ".xlsx");
+
+
+            var filevorlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fvn);
+            using var stvorlage = new FileStream(filevorlage, FileMode.Create);
+            await vm.FileAnlage.CopyToAsync(stvorlage);
+            await MinioHelper.Upload(fvn, "vorlage", ".xlsx");
+
+
+
+            return RedirectToAction("Index");
+
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        public IActionResult GetResult(Guid taskid)
+        {
+            var cjob = _context.ConvertJobs.Find(taskid);
             return View();
         }
 
 
+        #region PDF İşlemleri
 
         public async Task<PdfAcroForm> FillForm(PdfAcroForm form, PdfVM data)
         {
@@ -37,17 +109,11 @@ namespace PdfFillerApp.Controllers
 
             return form;
         }
-
-
-
-        public async Task FillPdf()
+        public async Task FillPdf(Guid taskid)
         {
 
             string inputPdfPath = @"wwwroot\temp\orginalform.pdf";
-            string outputPdfPath = @"wwwroot\temp\" + Guid.NewGuid().ToString() + ".pdf";
-
-
-
+            string outputPdfPath = @"wwwroot\temp\output\" + Guid.NewGuid().ToString() + ".pdf";
 
 
             using PdfReader pdfReader = new(inputPdfPath);
@@ -58,142 +124,100 @@ namespace PdfFillerApp.Controllers
             // excelden okuma yapılıp Dataset hazırlanacak
 
 
+            var cellvaluelist = await ReadExcel(taskid);
 
-            var dataset = await ReadExcel(Guid.Empty);
-            var formfilled = await FillForm(form, dataset);
+            PdfVM pdfVM = new();
 
+
+            var formfilled = await FillForm(form, pdfVM);
 
             pdfDocument.Close();
 
-            Console.WriteLine("PDF filled successfully.");
-            // return outputPdfPath;
+        }
 
+        #endregion
+
+        // Install-Package NPOI
+
+        public void UploadFileAndConvert(string sourceFilePath, string destinationFilePath)
+        {
+            // Check if the file is XLS
+            if (Path.GetExtension(sourceFilePath).Equals(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                ExcelHelper.ConvertXlsToXlsx(sourceFilePath, destinationFilePath);
+            }
 
         }
 
 
-        // Install-Package NPOI
-
-        public async Task<PdfVM> ReadExcel(Guid taskid)
+        public async Task<List<SheetDataVM>>? ReadExcel(Guid? taskid)
         {
-            PdfVM dataset = new();
-            string filePath = @"wwwroot\temp\file.xlsx";
+            List<SheetDataVM> sheetDataList = new();
+
+
+            var cjob = _context.ConvertJobs.Find(taskid);
+
+            //  if (cjob != null){
+            //  // TODO: ilgili taskın dosyası minio üzerinden getirilip @"wwwroot\temp\inputxlsx içine kaydedilecek!!!
+            //
+            //  }
+
+            // işlenecek dosya
+            string filePath = @"wwwroot\temp\inputxlsx\aav.xlsx";
 
             try
             {
-                using FileStream fs = new FileStream(filePath, FileMode.Open, FileAccess.Read);
+                using FileStream fs = new(filePath, FileMode.Open, FileAccess.Read);
                 IWorkbook workbook = new XSSFWorkbook(fs);
 
                 // datasseti doldur
                 for (int i = 0; i < workbook.NumberOfSheets; i++)
                 {
-                    ISheet sheet = workbook.GetSheetAt(i);
 
-                    // Loop through rows and columns to read data
+                    ISheet sheet = workbook.GetSheetAt(i);
+                    SheetDataVM sheetData = new() { SheetName = sheet.SheetName };
+
+                    // Loop rows / columns
                     for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
                     {
                         IRow row = sheet.GetRow(rowIndex);
 
                         if (row != null)
                         {
-                            // Loop through cells in the row
+
+                            // Loop cells in the row
                             foreach (ICell cell in row.Cells)
                             {
-                                // dataset te ilgili alanı doldur
+                                Console.WriteLine($"{cell.Address} - {cell}");
 
+                                if (!string.IsNullOrEmpty(cell.ToString()))
+                                {
+                                    sheetData.CellValues.Add(new CellData
+                                    {
+                                        Address = cell.Address.ToString(),
+                                        Value = cell
+                                    });
+                                }
 
-                                Console.Write($"{cell}\t");
                             }
-                            Console.WriteLine(); // Move to the next row
+                            Console.WriteLine();
                         }
                     }
-
-                    Console.WriteLine();
+                    sheetDataList.Add(sheetData);
                 }
 
-
-
-                // dataseti dön
-                return dataset;
+                return sheetDataList;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
 
                 throw;
             }
+
         }
 
 
 
-
-        //// ClosedXML // Install-Package ClosedXML
-
-        //public async Task ReadExcel()
-        //{
-        //    string filePath = @"wwwroot\temp\file.xlsx";
-
-        //    try
-        //    {
-        //        using var workbook = new XLWorkbook(filePath);
-        //        // Loop through all sheets in the Excel file
-        //        foreach (var sheet in workbook.Worksheets)
-        //        {
-        //            Console.WriteLine($"Reading data from sheet: {sheet.Name}");
-
-        //            // Loop through rows and columns to read data
-        //            foreach (var row in sheet.Rows())
-        //            {
-        //                foreach (var cell in row.Cells())
-        //                {
-        //                    // Access cell value using cell.Value
-        //                    Console.Write($"{cell.Value}\t");
-        //                }
-        //                Console.WriteLine(); // Move to the next row
-        //            }
-
-        //            Console.WriteLine();
-        //        }
-        //    }
-        //    catch (Exception ex)
-        //    {
-
-        //        throw;
-        //    }
-        //}
-
-
-        /// EPPLUS  // Install-Package EPPlus
-
-        // public async Task ReadExcel()
-        //{
-        //    string filePath = @"wwwroot\temp\file.xlsx";
-
-        //    using var package = new ExcelPackage(new FileInfo(filePath));
-        //    ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
-        //    // Loop through all sheets in the Excel file
-        //    foreach (var sheet in package.Workbook.Worksheets)
-        //    {
-        //        Console.WriteLine($"Reading data from sheet: {sheet.Name}");
-
-        //        // Get the dimensions of the sheet
-        //        int rowCount = sheet.Dimension.Rows;
-        //        int colCount = sheet.Dimension.Columns;
-
-        //        // Loop through rows and columns to read data
-        //        for (int row = 1; row <= rowCount; row++)
-        //        {
-        //            for (int col = 1; col <= colCount; col++)
-        //            {
-        //                // Access cell value using sheet.Cells[row, col].Value
-        //                object cellValue = sheet.Cells[row, col].Value;
-        //                Console.Write($"{cellValue}\t");
-        //            }
-        //            Console.WriteLine(); // Move to the next row
-        //        }
-
-        //        Console.WriteLine();
-        //    }
-        //}
 
     }
 }
