@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using PdfFillerApp.Data;
+using PdfFillerApp.Helper;
 
 
 
 var builder = WebApplication.CreateBuilder(args);
-
 
 
 
@@ -16,6 +16,12 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+
+
+
+MinioHelper.Configuration = builder.Configuration;
+
 
 var app = builder.Build();
 

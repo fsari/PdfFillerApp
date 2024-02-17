@@ -7,7 +7,9 @@
 
 <div class="row">
 
-    <a class="btn btn-outline-primary btn-sm float-end" asp-controller="Home" asp-action="NewTask">Yeni İşlem</a>
+    <div class="col-12">
+        <a class="btn btn-outline-primary btn-sm float-end" asp-controller="Home" asp-action="NewTask">Yeni İşlem</a>
+    </div>
     <table class="table table-sm table-condensed">
 
 
@@ -19,8 +21,8 @@
                     <td>@item.Title</td>
                     <td>@item.CreatedAt.ToString("dd.MM.yyyy")</td>
                     <td>@item.Status</td>
-                    <td>@item.FileAnlageXls</td>
-                    <td>@item.FileVorlageXls</td>
+                    <td> <a class="text-success" asp-action="DownloadFile" asp-route-filename="@item.FileAnlageXls">@item.FileAnlageXls</a></td>
+                    <td> <a class="text-success" asp-action="DownloadFile" asp-route-filename="@item.FileVorlageXls">@item.FileVorlageXls</a></td>
                     <td>@item.ResultPdf</td>
                     <td>
                         <div class="btn-group btn-group-sm">

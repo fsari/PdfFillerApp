@@ -3,6 +3,8 @@ using Minio.DataModel;
 using Minio.DataModel.Args;
 using Minio.DataModel.Response;
 using Minio.Exceptions;
+using System.Runtime.Intrinsics.X86;
+using System.Security.AccessControl;
 
 namespace PdfFillerApp.Helper
 {
@@ -65,9 +67,9 @@ namespace PdfFillerApp.Helper
 
         public static async Task<List<string>> ListObjects()
         {
-            string endpoint = Configuration.GetSection("Minio").GetSection("EndPoint").Value;  
-            string accessKey = Configuration.GetSection("Minio").GetSection("Accesskey").Value; 
-            string secretKey = Configuration.GetSection("Minio").GetSection("Secretkey").Value; 
+            string endpoint = Configuration.GetSection("Minio").GetSection("EndPoint").Value;
+            string accessKey = Configuration.GetSection("Minio").GetSection("Accesskey").Value;
+            string secretKey = Configuration.GetSection("Minio").GetSection("Secretkey").Value;
             string bucketName = Configuration.GetSection("Minio").GetSection("BucketName").Value;
             List<string> list = new();
 
@@ -112,7 +114,7 @@ namespace PdfFillerApp.Helper
         }
 
 
-        public static async Task DownloadFile(string fileName)
+        public static async Task DownloadFile(string fileName, bool toFolder=false, string? foldername = @"wwwroot\temp\downloaded\")
         {
 
             fileName = fileName.TrimStart('/');
@@ -130,15 +132,19 @@ namespace PdfFillerApp.Helper
 
             try
             {
+                string filePath = toFolder
+                    ? foldername + fileName.Split('/').Last()
+                    : fileName.Split('/').Last();
 
                 var args = new GetObjectArgs()
                     .WithBucket(bucketName)
                     .WithObject(fileName)
-                    .WithFile(@"wwwroot\Temp\Downloaded\" + fileName.Split('/').Last());
+                    .WithFile(filePath);
+
 
                 var file = await minio.GetObjectAsync(args).ConfigureAwait(false);
 
-
+               
             }
             catch (MinioException e)
             {
@@ -147,7 +153,7 @@ namespace PdfFillerApp.Helper
         }
 
 
-           public static async Task GetPdfFile(string fileName)
+        public static async Task GetPdfFile(string fileName)
         {
 
             fileName = fileName.TrimStart('/');

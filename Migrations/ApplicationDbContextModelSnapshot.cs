@@ -244,7 +244,7 @@ namespace PdfFillerApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("CellPdfPairings");
+                    b.ToTable("CellPdfPairings", (string)null);
                 });
 
             modelBuilder.Entity("PdfFillerApp.Models.ConvertJob", b =>
@@ -277,7 +277,7 @@ namespace PdfFillerApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ConvertJobs");
+                    b.ToTable("ConvertJobs", (string)null);
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

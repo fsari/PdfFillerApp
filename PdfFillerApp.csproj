@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <Folder Include="wwwroot\temp\inputxls\" />
+    <Folder Include="wwwroot\temp\downloaded\" />
   </ItemGroup>
 
 </Project>

@@ -1,6 +1,7 @@
 ﻿using iText.Forms;
 using iText.Kernel.Pdf;
 using Microsoft.AspNetCore.Mvc;
+using NPOI.HPSF;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
 using PdfFillerApp.Data;
@@ -25,6 +26,8 @@ namespace PdfFillerApp.Controllers
         public IActionResult Index()
         {
             var taskList = _context.ConvertJobs.Where(i => !i.IsDeleted).OrderByDescending(i => i.CreatedAt).ToList();
+            var list = MinioHelper.ListObjects().GetAwaiter().GetResult();
+
             return View(taskList);
         }
 
@@ -42,35 +45,40 @@ namespace PdfFillerApp.Controllers
                 return BadRequest("Dosya Geçersiz");
             }
 
-            string fan = vm.FileAnlage.FileName.TrCharsToEngCharsSub200();
-            string fvn = vm.FileVorlage.FileName.TrCharsToEngCharsSub200();
 
+            //-----------------------------------------------------------------------
+            string fan = vm.FileAnlage.FileName.TrCharsToEngCharsSub200();
+            var fileanlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fan);
+            using (var stanlage = new FileStream(fileanlage, FileMode.Create))
+            {
+                vm.FileAnlage.CopyToAsync(stanlage).GetAwaiter().GetResult();
+                stanlage.Dispose();
+            }
+            var resulta = await MinioHelper.Upload(fileanlage, vm.Title, ".xlsx");
+
+            //------------------------------------------------------------------------
+            string fvn = vm.FileVorlage.FileName.TrCharsToEngCharsSub200();
+            var filevorlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fvn);
+            using (var stvorlage = new FileStream(filevorlage, FileMode.Create))
+            {
+                vm.FileAnlage.CopyToAsync(stvorlage).GetAwaiter().GetResult();
+                stvorlage.Dispose();
+            }
+            var resultv = await MinioHelper.Upload(filevorlage, vm.Title, ".xlsx");
+
+            //------------------------------------------------------------------------
 
 
             var cj = new ConvertJob
             {
                 Title = vm.Title,
                 Status = Status.Started,
-                FileAnlageXls = fan,
-                FileVorlageXls = fvn
+                FileAnlageXls = resulta,
+                FileVorlageXls = resultv,
+                CreatedAt = DateTime.Now,
             };
             _context.ConvertJobs.Add(cj);
             _context.SaveChanges();
-
-
-
-            var fileanlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fan);
-            using var stanlage = new FileStream(fileanlage, FileMode.Create);
-            await vm.FileAnlage.CopyToAsync(stanlage);
-            await MinioHelper.Upload(fan, "anlage", ".xlsx");
-
-
-            var filevorlage = Path.Combine(@"wwwroot\temp\inputxlsx\", fvn);
-            using var stvorlage = new FileStream(filevorlage, FileMode.Create);
-            await vm.FileAnlage.CopyToAsync(stvorlage);
-            await MinioHelper.Upload(fvn, "vorlage", ".xlsx");
-
-
 
             return RedirectToAction("Index");
 
@@ -79,7 +87,11 @@ namespace PdfFillerApp.Controllers
 
 
 
-
+        public async Task<IActionResult> DownloadFile(string filename)
+        {
+            await MinioHelper.DownloadFile(filename);
+            return RedirectToAction("Index");
+        }
 
 
 
@@ -109,11 +121,12 @@ namespace PdfFillerApp.Controllers
 
             return form;
         }
-        public async Task FillPdf(Guid taskid)
+        public async Task FillPdf(Guid id)
         {
+            var cj = _context.ConvertJobs.Find(id);
 
-            string inputPdfPath = @"wwwroot\temp\orginalform.pdf";
-            string outputPdfPath = @"wwwroot\temp\output\" + Guid.NewGuid().ToString() + ".pdf";
+            string inputPdfPath = @"wwwroot\template\orginalform.pdf";
+            string outputPdfPath = @"wwwroot\temp\output\" + cj.Title.TrCharsToEngCharsSub200() + ".pdf";
 
 
             using PdfReader pdfReader = new(inputPdfPath);
@@ -124,12 +137,15 @@ namespace PdfFillerApp.Controllers
             // excelden okuma yapılıp Dataset hazırlanacak
 
 
-            var cellvaluelist = await ReadExcel(taskid);
+            var cellvaluelist = await ReadExcel(id);
 
             PdfVM pdfVM = new();
 
 
             var formfilled = await FillForm(form, pdfVM);
+
+
+            var resulta = await MinioHelper.Upload(outputPdfPath, cj.Title, ".pdf");
 
             pdfDocument.Close();
 
@@ -150,73 +166,114 @@ namespace PdfFillerApp.Controllers
         }
 
 
-        public async Task<List<SheetDataVM>>? ReadExcel(Guid? taskid)
+        public async Task<List<SheetDataVM>> ReadExcel(Guid? taskid)
         {
             List<SheetDataVM> sheetDataList = new();
 
 
             var cjob = _context.ConvertJobs.Find(taskid);
 
-            //  if (cjob != null){
-            //  // TODO: ilgili taskın dosyası minio üzerinden getirilip @"wwwroot\temp\inputxlsx içine kaydedilecek!!!
-            //
-            //  }
-
-            // işlenecek dosya
-            string filePath = @"wwwroot\temp\inputxlsx\aav.xlsx";
-
-            try
+            if (cjob != null)
             {
-                using FileStream fs = new(filePath, FileMode.Open, FileAccess.Read);
-                IWorkbook workbook = new XSSFWorkbook(fs);
 
-                // datasseti doldur
-                for (int i = 0; i < workbook.NumberOfSheets; i++)
+                 MinioHelper.DownloadFile(cjob.FileAnlageXls, true).GetAwaiter().GetResult();
+                 MinioHelper.DownloadFile(cjob.FileVorlageXls, true).GetAwaiter().GetResult();
+
+
+               
+                string fileanlage = @"wwwroot\temp\downloaded\"+cjob.FileAnlageXls;
+                string filevorlage = @"wwwroot\temp\downloaded\"+cjob.FileVorlageXls;
+
+                try
                 {
+                    using FileStream fs = new(fileanlage, FileMode.Open, FileAccess.Read);
+                    IWorkbook workbook = new XSSFWorkbook(fs);
 
-                    ISheet sheet = workbook.GetSheetAt(i);
-                    SheetDataVM sheetData = new() { SheetName = sheet.SheetName };
-
-                    // Loop rows / columns
-                    for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
+                    // datasseti doldur
+                    for (int i = 0; i < workbook.NumberOfSheets; i++)
                     {
-                        IRow row = sheet.GetRow(rowIndex);
 
-                        if (row != null)
+                        ISheet sheet = workbook.GetSheetAt(i);
+                        SheetDataVM sheetData = new() { SheetName = sheet.SheetName };
+
+                        // Loop rows / columns
+                        for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
                         {
+                            IRow row = sheet.GetRow(rowIndex);
 
-                            // Loop cells in the row
-                            foreach (ICell cell in row.Cells)
+                            if (row != null)
                             {
-                                Console.WriteLine($"{cell.Address} - {cell}");
 
-                                if (!string.IsNullOrEmpty(cell.ToString()))
+                                // Loop cells in the row
+                                foreach (ICell cell in row.Cells)
                                 {
-                                    sheetData.CellValues.Add(new CellData
+                                    Console.WriteLine($"{cell.Address} - {cell}");
+
+                                    if (!string.IsNullOrEmpty(cell.ToString()))
                                     {
-                                        Address = cell.Address.ToString(),
-                                        Value = cell
-                                    });
+                                        sheetData.CellValues.Add(new CellData
+                                        {
+                                            Address = cell.Address.ToString(),
+                                            Value = cell
+                                        });
+                                    }
+
                                 }
-
+                                Console.WriteLine();
                             }
-                            Console.WriteLine();
                         }
+                        sheetDataList.Add(sheetData);
                     }
-                    sheetDataList.Add(sheetData);
+
+
+
+                    //----------------
+
+                    using FileStream fsv = new(filevorlage, FileMode.Open, FileAccess.Read);
+                    IWorkbook workbookv = new XSSFWorkbook(fsv);
+
+                    // datasseti doldur
+                    for (int i = 0; i < workbook.NumberOfSheets; i++)
+                    {
+                        ISheet sheet = workbookv.GetSheetAt(i);
+                        SheetDataVM sheetData = new() { SheetName = sheet.SheetName };
+
+                        // Loop rows / columns
+                        for (int rowIndex = 0; rowIndex <= sheet.LastRowNum; rowIndex++)
+                        {
+                            IRow row = sheet.GetRow(rowIndex);
+
+                            if (row != null)
+                            {
+
+                                // Loop cells in the row
+                                foreach (ICell cell in row.Cells)
+                                {
+                                    Console.WriteLine($"{cell.Address} - {cell}");
+
+                                    if (!string.IsNullOrEmpty(cell.ToString()))
+                                    {
+                                        sheetData.CellValues.Add(new CellData
+                                        {
+                                            Address = cell.Address.ToString(),
+                                            Value = cell
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        sheetDataList.Add(sheetData);
+                    }
+
                 }
-
-                return sheetDataList;
-            }
-            catch (Exception ex)
-            {
-
-                throw;
+                catch (Exception ex)
+                {
+                    throw;
+                }
             }
 
+            return sheetDataList;
         }
-
-
 
 
     }
