@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Build.Execution;
 using Microsoft.EntityFrameworkCore;
 using PdfFillerApp.Data;
 using PdfFillerApp.Helper;
@@ -17,10 +18,12 @@ builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.Requ
 // Add services to the container.
 builder.Services.AddControllersWithViews();
 
+builder.Services.Configure<MinioOptions>(builder.Configuration.GetSection("Minio"));
 
 
 
 MinioHelper.Configuration = builder.Configuration;
+
 
 
 var app = builder.Build();

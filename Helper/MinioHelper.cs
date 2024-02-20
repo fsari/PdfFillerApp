@@ -8,6 +8,13 @@ using System.Security.AccessControl;
 
 namespace PdfFillerApp.Helper
 {
+    public class MinioOptions
+    {
+        public string EndPoint { get; init; }
+        public string Accesskey { get; init; }
+        public string Secretkey { get; init; }
+        public string BucketName { get; init; }
+    }
     public static class MinioHelper
     {
         public static IConfiguration? Configuration;
