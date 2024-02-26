@@ -26,6 +26,7 @@
     <PackageReference Include="Minio" Version="6.0.2" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.11" />
     <PackageReference Include="NPOI" Version="2.6.2" />
+    <PackageReference Include="Spire.XLS" Version="14.2.1" />
   </ItemGroup>
 
   <ItemGroup>

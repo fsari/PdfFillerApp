@@ -1,11 +1,23 @@
 ﻿using NPOI.HSSF.UserModel;
 using NPOI.SS.UserModel;
 using NPOI.XSSF.UserModel;
+using Spire.Xls;
 
 namespace PdfFillerApp.Helper
 {
     public static class ExcelHelper
     {
+        public static void ConvertXlsToXlsx(string inputPath, string outputPath, bool viaSpire)
+        {
+            //Initialize an instance of the Workbook class
+            Spire.Xls.Workbook workbook = new();
+            //Load an XLS file
+            workbook.LoadFromFile(inputPath);
+
+            //Save the XLS file to XLSX format
+            workbook.SaveToFile(outputPath, ExcelVersion.Version2016);
+            workbook.Dispose();
+        }
         public static void ConvertXlsToXlsx(string inputPath, string outputPath)
         {
             using (FileStream xlsStream = new(inputPath, FileMode.Open, FileAccess.Read))
@@ -36,16 +48,16 @@ namespace PdfFillerApp.Helper
 
                                 switch (cell.CellType)
                                 {
-                                    case CellType.Boolean:
+                                    case NPOI.SS.UserModel.CellType.Boolean:
                                         xssfCell.SetCellValue(cell.BooleanCellValue);
                                         break;
-                                    case CellType.Numeric:
+                                    case NPOI.SS.UserModel.CellType.Numeric:
                                         xssfCell.SetCellValue(cell.NumericCellValue);
                                         break;
-                                    case CellType.String:
+                                    case NPOI.SS.UserModel.CellType.String:
                                         xssfCell.SetCellValue(cell.StringCellValue);
                                         break;
-                                    case CellType.Formula:
+                                    case NPOI.SS.UserModel.CellType.Formula:
                                         xssfCell.SetCellFormula(cell.CellFormula);
                                         break;
                                         // Handle other cell types as needed
@@ -60,5 +72,8 @@ namespace PdfFillerApp.Helper
                 xssfWorkbook.Write(xlsxStream);
             }
         }
+
+
+
     }
 }
